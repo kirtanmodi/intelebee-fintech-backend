@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "aws-sdk": "^2.1692.0",
+    "serverless-dotenv-plugin": "^6.0.0",
+    "stripe": "^17.5.0"
+  },
+  "scripts": {
+    "deploy": "serverless deploy --stage dev",
+    "remove": "serverless remove --stage dev",
+    "offline": "sls offline --stage dev --httpPort 3001"
+  },
+  "devDependencies": {
+    "serverless-offline": "^14.4.0"
+  }
+}

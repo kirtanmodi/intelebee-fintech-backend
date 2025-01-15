@@ -1,0 +1,60 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: kirtanmodi
+# "app" enables Serverless Framework Dashboard features and sharing them with other Services.
+app: intelebee-fintech-backend
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: intelebee-fintech-backend
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: dev
+  httpApi:
+    cors:
+      allowedOrigins:
+        - '*'
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - X-Requested-With
+        - Origin
+        - Accept
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        - HEAD
+      maxAge: 3600
+      
+
+functions:
+  createOnboardingLink:
+    handler: functions/stripe/stripe.createOnboardingLink
+    events:
+      - httpApi:
+          path: /create-onboarding-link
+          method: post
+          cors: true
+
+  getAllAccounts:
+    handler: functions/stripe/stripe.getAllAccounts
+    events:
+      - httpApi:
+          path: /get-all-accounts
+          method: get
+          cors: true
+
+  deleteAccount:
+    handler: functions/stripe/stripe.deleteAccount
+    events:
+      - httpApi:
+          path: /delete-account
+          method: delete
+          cors: true
+
+plugins:
+  - serverless-offline
+  - serverless-dotenv-plugin
