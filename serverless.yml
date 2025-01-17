@@ -63,6 +63,14 @@ functions:
           method: post
           cors: true
 
+  updateAccountSettings:
+    handler: functions/stripe/stripe.updateAccountSettings
+    events:
+      - httpApi:
+          path: /update-account-settings
+          method: post
+          cors: true
+
 plugins:
   - serverless-offline
   - serverless-dotenv-plugin

@@ -165,3 +165,50 @@ module.exports.createStandardOnboardingLink = async (event) => {
     };
   }
 };
+
+module.exports.updateAccountSettings = async (event) => {
+  try {
+    const requestBody = JSON.parse(event.body || "{}");
+    const { accountId } = requestBody;
+
+    if (!accountId) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "accountId is required" }),
+      };
+    }
+
+    const accountSettings = await stripe.accounts.update(accountId, {
+      controller: {
+        stripe_dashboard: {
+          type: "full",
+        },
+        fees: {
+          payer: "account",
+        },
+        losses: {
+          payments: "stripe",
+        },
+        requirement_collection: "stripe",
+      },
+    });
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: "Account settings updated successfully",
+        settings: accountSettings,
+      }),
+    };
+  } catch (error) {
+    console.error("Stripe Account Settings Error:", error);
+    return {
+      statusCode: error.statusCode || 500,
+      body: JSON.stringify({
+        error: error.message,
+        type: error.type,
+        code: error.code,
+      }),
+    };
+  }
+};
