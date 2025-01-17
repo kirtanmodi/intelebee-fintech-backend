@@ -55,6 +55,14 @@ functions:
           method: delete
           cors: true
 
+  createStandardOnboardingLink:
+    handler: functions/stripe/stripe.createStandardOnboardingLink
+    events:
+      - httpApi:
+          path: /create-standard-onboarding
+          method: post
+          cors: true
+
 plugins:
   - serverless-offline
   - serverless-dotenv-plugin
