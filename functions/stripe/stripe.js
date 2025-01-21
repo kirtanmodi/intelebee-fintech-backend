@@ -1,51 +1,282 @@
 const Stripe = require("stripe");
+const { v4: uuidv4 } = require("uuid");
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Constants
+const SUPPORTED_BUSINESS_TYPES = ["individual", "company", "non_profit", "government_entity"];
+const DEFAULT_PLATFORM_FEE_PERCENTAGE = 5;
+const BASE_FRONTEND_URL = "http://intelebee-fintech-frontend.s3-website-us-east-1.amazonaws.com";
+const DEFAULT_MCC_CODE = "5734"; // Computer Software Stores
+
+// Utility functions
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const createErrorResponse = (statusCode, message, details = null) => ({
+  statusCode,
+  headers: {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With,Origin,Accept",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS,HEAD",
+    "Access-Control-Max-Age": "3600",
+  },
+  body: JSON.stringify({
+    error: message,
+    ...(details && { details }),
+    timestamp: new Date().toISOString(),
+  }),
+});
+
+const createSuccessResponse = (data) => ({
+  statusCode: 200,
+  headers: {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Requested-With,Origin,Accept",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS,HEAD",
+    "Access-Control-Max-Age": "3600",
+  },
+  body: JSON.stringify({
+    success: true,
+    ...data,
+    timestamp: new Date().toISOString(),
+  }),
+});
+
+// ------------------------------------------------------------------------------------------------ Express ------------------------------------------------------------------------------------------------
 
 // Create Express Onboarding Link
 module.exports.createOnboardingLink = async (event) => {
-  // const { id } = event.body;
+  // Sample request body:
+  /*
+  {
+    "email": "user@example.com", // Optional email for the connected account
+    "business_profile": { // Optional business profile details
+      "name": "My Business",
+      "url": "https://mybusiness.com",
+      "support_email": "support@mybusiness.com",
+      "support_phone": "+1234567890"
+    },
+    "settings": { // Optional custom settings
+      "statement_descriptor": "CUSTOM DESC", // Defaults to "INTELEBEE PAY"
+      "payout_schedule": "manual" // or "daily", "weekly", "monthly"
+    }
+  }
+  */
   const uid = uuidv4();
+
   try {
-    // Create or retrieve a connected account
-    const account = await stripe.accounts.create({ type: "express" });
+    const requestBody = JSON.parse(event.body || "{}");
+    const { email, business_profile, settings } = requestBody;
 
-    // console.log("Account created:", account);
-
-    // Create the onboarding link
-    const accountLink = await stripe.accountLinks.create({
-      account: account.id,
-      refresh_url: "http://intelebee-fintech-frontend.s3-website-us-east-1.amazonaws.com/",
-      return_url: `http://intelebee-fintech-frontend.s3-website-us-east-1.amazonaws.com?uid=${uid}`,
-      type: "account_onboarding",
+    // Create Express account with enhanced configuration
+    const account = await stripe.accounts.create({
+      type: "express",
+      email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      settings: {
+        payouts: {
+          schedule: { interval: settings?.payout_schedule || "manual" },
+        },
+        payments: {
+          statement_descriptor: settings?.statement_descriptor || "INTELEBEE PAY",
+        },
+      },
+      business_profile: business_profile || undefined,
+      metadata: {
+        createdAt: new Date().toISOString(),
+        createdBy: "system",
+        accountType: "express",
+      },
     });
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ url: accountLink.url }),
-    };
+    // Create onboarding link with enhanced configuration
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: `${BASE_FRONTEND_URL}/onboarding/refresh`,
+      return_url: `${BASE_FRONTEND_URL}/onboarding/complete?uid=${uid}&accountId=${account.id}`,
+      type: "account_onboarding",
+      collect: "eventually_due",
+    });
+
+    return createSuccessResponse({
+      url: accountLink.url,
+      accountId: account.id,
+      type: "express_account_link",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Links expire in 24 hours
+    });
   } catch (error) {
-    console.error("Stripe Error:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
-    };
+    console.error("[Stripe Express Onboarding Error]:", {
+      error: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack,
+    });
+
+    return createErrorResponse(error.statusCode || 500, "Failed to create express onboarding link", {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+    });
   }
 };
 
+// Check Account Status
+module.exports.checkAccountStatus = async (event) => {
+  try {
+    const { accountId } = event.pathParameters;
+
+    if (!accountId) {
+      return createErrorResponse(400, "Account ID is required");
+    }
+
+    const account = await stripe.accounts.retrieve(accountId);
+
+    const accountStatus = {
+      details_submitted: account.details_submitted,
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+      requirements: {
+        currently_due: account.requirements?.currently_due || [],
+        eventually_due: account.requirements?.eventually_due || [],
+        pending_verification: account.requirements?.pending_verification || [],
+      },
+    };
+
+    return createSuccessResponse(accountStatus);
+  } catch (error) {
+    console.error("Error checking account status:", {
+      error: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack,
+    });
+
+    return createErrorResponse(error.statusCode || 500, "Failed to check account status", {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+    });
+  }
+};
+
+// Create Express Dashboard Link
+module.exports.createExpressDashboardLink = async (event) => {
+  try {
+    const { accountId, returnUrl } = JSON.parse(event.body || "{}");
+
+    if (!accountId) {
+      return createErrorResponse(400, "Account ID is required");
+    }
+
+    // Create login link with enhanced configuration
+    const loginLink = await stripe.accounts.createLoginLink(accountId, {
+      redirect_url: returnUrl || `${BASE_FRONTEND_URL}/dashboard`,
+    });
+
+    return createSuccessResponse({
+      url: loginLink.url,
+      accountId,
+      type: "express_dashboard_link",
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Links expire in 24 hours
+    });
+  } catch (error) {
+    console.error("[Stripe Dashboard Link Error]:", {
+      error: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack,
+    });
+
+    // Handle specific Stripe errors
+    if (error.type === "StripeInvalidRequestError") {
+      return createErrorResponse(400, "Invalid account ID or configuration", {
+        message: error.message,
+        code: error.code,
+      });
+    }
+
+    return createErrorResponse(error.statusCode || 500, "Failed to create dashboard link", {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+    });
+  }
+};
+
+// Express Dashboard Settings
+module.exports.expressDashboardSettings = async (event) => {
+  try {
+    const settings = JSON.parse(event.body || "{}");
+    const { accountId } = settings;
+
+    if (!accountId) {
+      return createErrorResponse(400, "Account ID is required");
+    }
+
+    // Update Stripe account branding settings
+    await stripe.accounts.update(accountId, {
+      settings: {
+        branding: {
+          primary_color: settings.branding?.accentColor,
+          logo: settings.branding?.logo,
+          icon: settings.branding?.icon,
+        },
+        dashboard: {
+          display_name: settings.branding?.displayName,
+        },
+      },
+    });
+
+    return createSuccessResponse({
+      success: true,
+      accountId,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("[Express Dashboard Settings Error]:", {
+      error: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack,
+    });
+
+    return createErrorResponse(error.statusCode || 500, "Failed to update dashboard settings", {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+    });
+  }
+};
+
+// ------------------------------------------------------------------------------------------------ Standard ------------------------------------------------------------------------------------------------
+
 // Create Standard Onboarding Link
 module.exports.createStandardOnboardingLink = async (event) => {
+  // Sample request body
+  const sampleBody = {
+    email: "merchant@example.com",
+    business_type: "individual", // Optional, defaults to "individual". Other options: "company", "non_profit", "government_entity"
+  };
+
   try {
     const requestBody = JSON.parse(event.body || "{}");
     const { email, business_type = "individual" } = requestBody;
 
-    if (!email) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Email is required" }),
-      };
+    // Input validation
+    if (!email || !validateEmail(email)) {
+      return createErrorResponse(400, "Valid email is required");
     }
 
-    // Create a Standard account
+    if (!SUPPORTED_BUSINESS_TYPES.includes(business_type)) {
+      return createErrorResponse(400, `Invalid business type. Supported types: ${SUPPORTED_BUSINESS_TYPES.join(", ")}`);
+    }
+
+    // Create Standard account with enhanced configuration
     const account = await stripe.accounts.create({
       type: "standard",
       email,
@@ -55,48 +286,152 @@ module.exports.createStandardOnboardingLink = async (event) => {
         transfers: { requested: true },
       },
       business_profile: {
-        mcc: "5734", // Computer Software Stores
-        url: "http://intelebee-fintech-frontend.s3-website-us-east-1.amazonaws.com/connected-accounts",
+        mcc: DEFAULT_MCC_CODE,
+        url: `${BASE_FRONTEND_URL}/connected-accounts`,
+        support_email: email,
+        support_url: `${BASE_FRONTEND_URL}/support`,
       },
       settings: {
         payouts: {
-          schedule: {
-            interval: "manual", // or 'daily', 'weekly', 'monthly'
-          },
+          schedule: { interval: "manual" },
         },
+        payments: {
+          statement_descriptor: "INTELEBEE PAY",
+        },
+      },
+      metadata: {
+        createdAt: new Date().toISOString(),
+        createdBy: "system",
+        accountType: "standard",
+        businessType: business_type,
       },
     });
 
-    // Create the account link for onboarding
+    // Create account link with enhanced configuration
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: "http://intelebee-fintech-frontend.s3-website-us-east-1.amazonaws.com",
-      return_url: "http://intelebee-fintech-frontend.s3-website-us-east-1.amazonaws.com",
+      refresh_url: `${BASE_FRONTEND_URL}/onboarding/refresh`,
+      return_url: `${BASE_FRONTEND_URL}/onboarding/complete`,
       type: "account_onboarding",
       collect: "eventually_due",
     });
 
+    return createSuccessResponse({
+      url: accountLink.url,
+      accountId: account.id,
+      type: "standard_account_link",
+      email,
+      businessType: business_type,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    });
+  } catch (error) {
+    console.error("[Stripe Standard Onboarding Error]:", {
+      error: error.message,
+      code: error.code,
+      type: error.type,
+      stack: error.stack,
+    });
+
+    // Handle specific Stripe errors
+    if (error.code === "account_invalid") {
+      return createErrorResponse(400, "Invalid account configuration");
+    }
+
+    if (error.code === "email_invalid") {
+      return createErrorResponse(400, "Invalid email address provided");
+    }
+
+    return createErrorResponse(error.statusCode || 500, "Failed to create standard onboarding link", {
+      message: error.message,
+      code: error.code,
+      type: error.type,
+    });
+  }
+};
+
+// Create Standard Dashboard Link
+module.exports.createStandardDashboardLink = async (event) => {
+  try {
+    // Parse the request body
+    const { accountId, returnUrl } = JSON.parse(event.body || "{}");
+
+    // Input validation
+    if (!returnUrl) {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          error: "Return URL is required",
+        }),
+      };
+    }
+
+    if (!accountId) {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          error: "Account ID is required",
+        }),
+      };
+    }
+
+    // Verify account exists and is a standard account
+    const account = await stripe.accounts.retrieve(accountId);
+    if (account.type !== "standard") {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+        body: JSON.stringify({
+          error: "Account must be a standard account type",
+        }),
+      };
+    }
+
+    // Create login link with redirect URL
+    const loginLink = await stripe.accounts.createLoginLink(accountId, {
+      redirect_url: returnUrl,
+    });
+
     return {
       statusCode: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
       body: JSON.stringify({
-        url: accountLink.url,
-        accountId: account.id,
-        object: "standard_account_link",
+        url: loginLink.url,
+        accountId,
+        type: "standard_dashboard_link",
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       }),
     };
   } catch (error) {
-    console.error("Stripe Standard Account Error:", error);
+    console.error("Error creating dashboard login link:", error);
+
     return {
-      statusCode: error.statusCode || 500,
+      statusCode: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
       body: JSON.stringify({
-        error: error.message,
-        type: error.type,
-        code: error.code,
+        error: "Failed to generate dashboard access link",
       }),
     };
   }
 };
 
+// ------------------------------------------------------------------------------------------------ Account Settings ------------------------------------------------------------------------------------------------
 // Update Account Settings
 module.exports.updateAccountSettings = async (event) => {
   try {
@@ -144,6 +479,8 @@ module.exports.updateAccountSettings = async (event) => {
     };
   }
 };
+
+// ------------------------------------------------------------------------------------------------ Account ------------------------------------------------------------------------------------------------
 
 // Get Account
 module.exports.getAccount = async (event) => {
@@ -219,15 +556,30 @@ module.exports.getAllAccounts = async (event) => {
   }
 };
 
+// ------------------------------------------------------------------------------------------------ Payment ------------------------------------------------------------------------------------------------
 // Create payment for a connected account
 module.exports.createPayment = async (event) => {
+  // Sample request body:
+  /*
+  {
+    "amount": 1000, // Amount in cents (e.g., $10.00)
+    "currency": "usd", // Supported: usd, eur, gbp, aud
+    "accountId": "acct_123xyz", // Connected Stripe account ID
+    "description": "Payment for services", // Optional payment description
+    "platformFeePercentage": 5, // Optional, defaults to 5%
+    "metadata": { // Optional additional metadata
+      "orderId": "ord_123",
+      "customerName": "John Doe"
+    }
+  }
+  */
   try {
     const {
       amount,
       currency,
       accountId,
       description,
-      platformFeePercentage = 5, // Default platform fee is 5%
+      platformFeePercentage = DEFAULT_PLATFORM_FEE_PERCENTAGE, // Default platform fee is 5%
       metadata = {},
     } = JSON.parse(event.body || "{}");
 
@@ -351,3 +703,5 @@ module.exports.createPayment = async (event) => {
     };
   }
 };
+
+// ------------------------------------------------------------------------------------------------ Payout ------------------------------------------------------------------------------------------------
