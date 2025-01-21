@@ -83,6 +83,51 @@ module.exports = {
     }
   },
 
+  createDirectPayment: async (event) => {
+    try {
+      const requestBody = JSON.parse(event.body || "{}");
+      const result = await standardService.createDirectPayment(requestBody);
+      return createSuccessResponse(result);
+    } catch (error) {
+      console.error("[Direct Payment Error]:", error);
+      return createErrorResponse(error.statusCode || 500, "Failed to create direct payment", {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+    }
+  },
+
+  createDirectRefund: async (event) => {
+    try {
+      const requestBody = JSON.parse(event.body || "{}");
+      const result = await standardService.createDirectRefund(requestBody);
+      return createSuccessResponse(result);
+    } catch (error) {
+      console.error("[Direct Refund Error]:", error);
+      return createErrorResponse(error.statusCode || 500, "Failed to create direct refund", {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+    }
+  },
+
+  updateStandardCapabilities: async (event) => {
+    try {
+      const { accountId } = JSON.parse(event.body || "{}");
+      const result = await standardService.updateAccountCapabilities(accountId);
+      return createSuccessResponse(result);
+    } catch (error) {
+      console.error("[Update Capabilities Error]:", error);
+      return createErrorResponse(error.statusCode || 500, "Failed to update account capabilities", {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+    }
+  },
+
   // Account Management Handlers
   getAllAccounts: async () => {
     try {

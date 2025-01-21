@@ -60,6 +60,27 @@ functions:
           path: /standard/dashboard
           method: post
 
+  createDirectPayment:
+    handler: src/handlers/stripe.createDirectPayment
+    events:
+      - httpApi:
+          path: /standard/direct-payment
+          method: post
+
+  createDirectRefund:
+    handler: src/handlers/stripe.createDirectRefund
+    events:
+      - httpApi:
+          path: /standard/direct-refund
+          method: post
+
+  updateStandardCapabilities:
+    handler: src/handlers/stripe.updateStandardCapabilities
+    events:
+      - httpApi:
+          path: /standard/capabilities
+          method: post
+
   # Account Management Functions
   getAccounts:
     handler: src/handlers/stripe.getAllAccounts
