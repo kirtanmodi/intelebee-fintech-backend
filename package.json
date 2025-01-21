@@ -2,7 +2,8 @@
   "dependencies": {
     "aws-sdk": "^2.1692.0",
     "serverless-dotenv-plugin": "^6.0.0",
-    "stripe": "^17.5.0"
+    "stripe": "^17.5.0",
+    "uuid": "^9.0.0"
   },
   "scripts": {
     "deploy": "serverless deploy --stage dev",
