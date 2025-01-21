@@ -1,69 +1,56 @@
-<!--
-title: 'AWS Simple HTTP Endpoint example in NodeJS'
-description: 'This template demonstrates how to make a simple HTTP API with Node.js running on AWS Lambda and API Gateway using the Serverless Framework.'
-layout: Doc
-framework: v4
-platform: AWS
-language: nodeJS
-authorLink: 'https://github.com/serverless'
-authorName: 'Serverless, Inc.'
-authorAvatar: 'https://avatars1.githubusercontent.com/u/13742415?s=200&v=4'
--->
+Based on the search results, here are the key differences between Stripe Express and Standard accounts:
 
-# Serverless Framework Node HTTP API on AWS
+### Standard Accounts:
 
-This template demonstrates how to make a simple HTTP API with Node.js running on AWS Lambda and API Gateway using the Serverless Framework.
+1. **Integration & Control**:
+- Lowest integration effort
+- Less control over interactions with connected accounts
+- Can use both API or OAuth for integration
 
-This template does not include any kind of persistence (database). For more advanced examples, check out the [serverless/examples repository](https://github.com/serverless/examples/) which includes Typescript, Mongo, DynamoDB and other examples.
+2. **Relationship & Dashboard**:
+- Connected accounts have direct relationship with Stripe
+- Full access to Stripe Dashboard
+- Can process charges on their own
 
-## Usage
+3. **Liability & Support**:
+- Connected account is responsible for fraud and disputes (when using direct charges)
+- Support is provided by both Platform and Stripe
+- Ideal for experienced businesses familiar with online payments
 
-### Deployment
+4. **Best For**:
+- Platforms that don't need much control over user interactions
+- Businesses that want to use direct charges
+- Connected accounts already familiar with online businesses
+- Examples: Store builders like Shopify, SaaS platforms
 
-In order to deploy the example, you need to run the following command:
+### Express Accounts:
 
-```
-serverless deploy
-```
+1. **Integration & Control**:
+- Low integration effort
+- More control over interactions with connected accounts
+- API-only integration
 
-After running deploy, you should see output similar to:
+2. **Relationship & Dashboard**:
+- Limited interaction with Stripe
+- Access to Express Dashboard (lighter version)
+- Primary interaction is with the platform
 
-```
-Deploying "serverless-http-api" to stage "dev" (us-east-1)
+3. **Liability & Support**:
+- Platform is responsible for disputes and refunds
+- Support provided by both Platform and Stripe
+- Platform can control payout settings programmatically
 
-✔ Service deployed to stack serverless-http-api-dev (91s)
+4. **Best For**:
+- Quick setup with Stripe handling onboarding and verification
+- Platforms wanting destination charges or separate charges/transfers
+- Platforms needing significant control over user interactions
+- Examples: Marketplaces like Airbnb, ride-hailing services like Lyft
 
-endpoint: GET - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com/
-functions:
-  hello: serverless-http-api-dev-hello (1.6 kB)
-```
+### Common Features for Both:
+- Automatic updates for new compliance requirements
+- Support for new countries without integration changes
+- Platform can specify payout timing
+- Stripe handles onboarding and identity verification
+- Both types cannot change country after creation
 
-_Note_: In current form, after deployment, your API is public and can be invoked by anyone. For production deployments, you might want to configure an authorizer. For details on how to do that, refer to [HTTP API (API Gateway V2) event docs](https://www.serverless.com/framework/docs/providers/aws/events/http-api).
-
-### Invocation
-
-After successful deployment, you can call the created application via HTTP:
-
-```
-curl https://xxxxxxx.execute-api.us-east-1.amazonaws.com/
-```
-
-Which should result in response similar to:
-
-```json
-{ "message": "Go Serverless v4! Your function executed successfully!" }
-```
-
-### Local development
-
-The easiest way to develop and test your function is to use the `dev` command:
-
-```
-serverless dev
-```
-
-This will start a local emulator of AWS Lambda and tunnel your requests to and from AWS Lambda, allowing you to interact with your function as if it were running in the cloud.
-
-Now you can invoke the function as before, but this time the function will be executed locally. Now you can develop your function locally, invoke it, and see the results immediately without having to re-deploy.
-
-When you are done developing, don't forget to run `serverless deploy` to deploy the function to the cloud.
+[Source: Stripe Connect Documentation](https://docs.stripe.com/connect/accounts)

@@ -9,68 +9,99 @@ provider:
   name: aws
   runtime: nodejs20.x
   region: us-east-1
-  stage: dev
+  stage: ${opt:stage, 'dev'}
+  environment:
+    STRIPE_SECRET_KEY: ${env:STRIPE_SECRET_KEY}
   httpApi:
-    cors:
-      allowedOrigins:
-        - '*'
-      allowedHeaders:
-        - Content-Type
-        - Authorization
-        - X-Requested-With
-        - Origin
-        - Accept
-      allowedMethods:
-        - GET
-        - POST
-        - PUT
-        - DELETE
-        - OPTIONS
-        - HEAD
-      maxAge: 3600
-      
+    cors: true
 
 functions:
-  createOnboardingLink:
-    handler: functions/stripe/stripe.createOnboardingLink
+  # Express Account Functions
+  createExpressOnboarding:
+    handler: src/handlers/stripe.createExpressOnboardingLink
     events:
       - httpApi:
-          path: /create-onboarding-link
+          path: /express/onboarding
           method: post
-          cors: true
 
-  getAllAccounts:
-    handler: functions/stripe/stripe.getAllAccounts
+  createExpressDashboard:
+    handler: src/handlers/stripe.createExpressDashboardLink
+    events:
+      - httpApi:
+          path: /express/dashboard
+          method: post
+
+  updateExpressDashboard:
+    handler: src/handlers/stripe.expressDashboardSettings
+    events:
+      - httpApi:
+          path: /express/dashboard/settings
+          method: post
+
+  checkExpressAccountStatus:
+    handler: src/handlers/stripe.checkExpressAccountStatus
+    events:
+      - httpApi:
+          path: /express/accounts/{accountId}/status
+          method: get
+
+  # Standard Account Functions
+  createStandardOnboarding:
+    handler: src/handlers/stripe.createStandardOnboardingLink
+    events:
+      - httpApi:
+          path: /standard/onboarding
+          method: post
+
+  createStandardDashboard:
+    handler: src/handlers/stripe.createStandardDashboardLink
+    events:
+      - httpApi:
+          path: /standard/dashboard
+          method: post
+
+  # Account Management Functions
+  getAccounts:
+    handler: src/handlers/stripe.getAllAccounts
     events:
       - httpApi:
           path: /get-all-accounts
           method: get
-          cors: true
 
   deleteAccount:
-    handler: functions/stripe/stripe.deleteAccount
+    handler: src/handlers/stripe.deleteAccount
     events:
       - httpApi:
           path: /delete-account
           method: delete
-          cors: true
 
-  createStandardOnboardingLink:
-    handler: functions/stripe/stripe.createStandardOnboardingLink
-    events:
-      - httpApi:
-          path: /create-standard-onboarding
-          method: post
-          cors: true
-
-  updateAccountSettings:
-    handler: functions/stripe/stripe.updateAccountSettings
+  updateAccount:
+    handler: src/handlers/stripe.updateAccountSettings
     events:
       - httpApi:
           path: /update-account-settings
           method: post
-          cors: true
+
+  checkAccountStatus:
+    handler: src/handlers/stripe.checkAccountStatus
+    events:
+      - httpApi:
+          path: /check-account-status
+          method: get
+
+  # Payment Functions
+  createPayment:
+    handler: src/handlers/stripe.createPayment
+    events:
+      - httpApi:
+          path: /create-payment
+          method: post
 
 plugins:
   - serverless-offline
   - serverless-dotenv-plugin
+
+custom:
+  serverless-offline:
+    httpPort: 3001
+    noPrependStageInUrl: true
