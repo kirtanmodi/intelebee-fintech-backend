@@ -12,6 +12,7 @@ provider:
   stage: ${opt:stage, 'dev'}
   environment:
     STRIPE_SECRET_KEY: ${env:STRIPE_SECRET_KEY}
+    PAYRIX_API_KEY: ${env:PAYRIX_API_KEY}
   httpApi:
     cors: true
 
@@ -131,6 +132,32 @@ functions:
       - httpApi:
           path: /create-checkout-session
           method: post
+
+  # Payrix Functions
+  createPayrixMerchant:
+    handler: src/handlers/payrix.createMerchant
+    timeout: 900 # 15 minutes
+    events:
+      - http:
+          path: /payrix/merchant
+          method: post
+          cors: true
+
+  getMerchants:
+    handler: src/handlers/payrix.getMerchants
+    events:
+      - httpApi:
+          path: /payrix/merchants
+          method: get
+          cors: true
+
+  deleteMerchant:
+    handler: src/handlers/payrix.deleteMerchant
+    events:
+      - httpApi:
+          path: /payrix/merchants/{merchantId}
+          method: delete
+          cors: true
 
 plugins:
   - serverless-offline
