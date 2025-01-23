@@ -91,7 +91,7 @@ const updateDashboardSettings = async (settings) => {
   };
 };
 
-const checkAccountStatus = async (accountId) => {
+const checkExpressAccountStatus = async (accountId) => {
   try {
     if (!accountId) {
       return createErrorResponse(400, "Account ID is required");
@@ -110,7 +110,7 @@ const checkAccountStatus = async (accountId) => {
       },
     };
 
-    return createSuccessResponse(accountStatus);
+    return accountStatus;
   } catch (error) {
     console.error("Error checking account status:", {
       error: error.message,
@@ -131,5 +131,5 @@ module.exports = {
   createOnboardingLink,
   createDashboardLink,
   updateDashboardSettings,
-  checkAccountStatus,
+  checkExpressAccountStatus,
 };

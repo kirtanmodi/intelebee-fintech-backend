@@ -68,6 +68,75 @@ const createPayment = async ({
   };
 };
 
+const createCheckoutSession = async ({ lineItems, accountId, returnUrl, metadata = {}, mode = "payment", uiMode = "embedded" }) => {
+  // Input validation
+  const validationErrors = [];
+  if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) {
+    validationErrors.push("Line items are required and must be an array");
+  }
+  if (!accountId) validationErrors.push("Connected account ID is required");
+  if (!returnUrl) validationErrors.push("Return URL is required");
+
+  if (validationErrors.length > 0) {
+    throw new Error(JSON.stringify(validationErrors));
+  }
+
+  // Verify connected account exists and is enabled
+  const account = await stripe.accounts.retrieve(accountId);
+  if (!account || !account.charges_enabled) {
+    throw new Error("Invalid account or account not fully onboarded");
+  }
+
+  // Calculate total amount and platform fee
+  const totalAmount = lineItems.reduce((sum, item) => {
+    return sum + item.price_data.unit_amount * (item.quantity || 1);
+  }, 0);
+
+  const platformFee = Math.max(
+    Math.round(totalAmount * (DEFAULT_PLATFORM_FEE_PERCENTAGE / 100)),
+    50 // Minimum fee of 50 cents
+  );
+
+  try {
+    const session = await stripe.checkout.sessions.create(
+      {
+        line_items: lineItems,
+        payment_intent_data: {
+          application_fee_amount: platformFee,
+          // transfer_data: {
+          //   destination: accountId,
+          // },
+        },
+        mode,
+        ui_mode: uiMode,
+        return_url: returnUrl,
+        metadata: {
+          ...metadata,
+          platformFeeAmount: platformFee,
+          platformFeePercentage: DEFAULT_PLATFORM_FEE_PERCENTAGE,
+          createdAt: new Date().toISOString(),
+        },
+      },
+      {
+        stripeAccount: accountId,
+      }
+    );
+
+    return {
+      sessionId: session.id,
+      clientSecret: session.client_secret,
+      url: session.url,
+      expiresAt: session.expires_at,
+      platformFee,
+      totalAmount,
+    };
+  } catch (error) {
+    console.error("Checkout session creation error:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   createPayment,
+  createCheckoutSession,
 };

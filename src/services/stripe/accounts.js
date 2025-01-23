@@ -81,10 +81,66 @@ const checkAccountStatus = async (accountId) => {
   };
 };
 
+const createAccountSession = async (accountId, components) => {
+  if (!accountId) {
+    throw new Error("Account ID is required");
+  }
+
+  return await stripe.accountSessions.create({
+    account: accountId,
+    components: components || {
+      payments: {
+        enabled: true,
+        features: {
+          refund_management: true,
+          dispute_management: true,
+          capture_payments: true,
+        },
+      },
+      account_management: {
+        enabled: true,
+        features: {
+          external_account_collection: true,
+        },
+      },
+      account_onboarding: {
+        enabled: true,
+        features: {
+          external_account_collection: true,
+        },
+      },
+      balances: {
+        enabled: true,
+        features: {
+          instant_payouts: true,
+          standard_payouts: true,
+          edit_payout_schedule: true,
+        },
+      },
+      payouts: {
+        enabled: true,
+        features: {
+          instant_payouts: true,
+          standard_payouts: true,
+          edit_payout_schedule: true,
+          external_account_collection: true,
+        },
+      },
+      notification_banner: {
+        enabled: true,
+        features: {
+          external_account_collection: true,
+        },
+      },
+    },
+  });
+};
+
 module.exports = {
   getAccount,
   deleteAccount,
   getAllAccounts,
   updateAccountSettings,
   checkAccountStatus,
+  createAccountSession,
 };

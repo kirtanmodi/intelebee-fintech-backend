@@ -42,7 +42,7 @@ functions:
     handler: src/handlers/stripe.checkExpressAccountStatus
     events:
       - httpApi:
-          path: /express/accounts/{accountId}/status
+          path: /check-standard-account-status/{accountId}
           method: get
 
   # Standard Account Functions
@@ -116,6 +116,20 @@ functions:
     events:
       - httpApi:
           path: /create-payment
+          method: post
+
+  createAccountSession:
+    handler: src/handlers/stripe.createAccountSession
+    events:
+      - httpApi:
+          path: /account-session
+          method: post
+
+  createCheckoutSession:
+    handler: src/handlers/stripe.createCheckoutSession
+    events:
+      - httpApi:
+          path: /create-checkout-session
           method: post
 
 plugins:

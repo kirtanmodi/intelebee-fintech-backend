@@ -3,6 +3,7 @@ const standardService = require("../services/stripe/standard");
 const accountService = require("../services/stripe/accounts");
 const paymentService = require("../services/stripe/payments");
 const { createSuccessResponse, createErrorResponse } = require("../utils/responses");
+const stripe = require("stripe");
 
 // Export all handlers
 module.exports = {
@@ -41,6 +42,21 @@ module.exports = {
     try {
       const settings = JSON.parse(event.body || "{}");
       const result = await expressService.updateDashboardSettings(settings);
+      return createSuccessResponse(result);
+    } catch (error) {
+      console.error("[Express Dashboard Settings Error]:", error);
+      return createErrorResponse(error.statusCode || 500, "Failed to update dashboard settings", {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+    }
+  },
+
+  checkExpressAccountStatus: async (event) => {
+    try {
+      const settings = JSON.parse(event.body || "{}");
+      const result = await expressService.checkExpressAccountStatus(settings);
       return createSuccessResponse(result);
     } catch (error) {
       console.error("[Express Dashboard Settings Error]:", error);
@@ -178,6 +194,47 @@ module.exports = {
     } catch (error) {
       console.error("[Payment Creation Error]:", error);
       return createErrorResponse(error.statusCode || 500, "Failed to create payment", {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+    }
+  },
+
+  createAccountSession: async (event) => {
+    try {
+      const { accountId, components } = JSON.parse(event.body || "{}");
+
+      if (!accountId) {
+        return createErrorResponse(400, "Connected account ID is required");
+      }
+
+      const accountSession = await accountService.createAccountSession(accountId, components);
+
+      return createSuccessResponse({
+        clientSecret: accountSession.client_secret,
+        accountId,
+        created: accountSession.created,
+        expiresAt: accountSession.expires_at,
+      });
+    } catch (error) {
+      console.error("[Account Session Creation Error]:", error);
+      return createErrorResponse(error.statusCode || 500, "Failed to create account session", {
+        message: error.message,
+        code: error.code,
+        type: error.type,
+      });
+    }
+  },
+
+  createCheckoutSession: async (event) => {
+    try {
+      const requestBody = JSON.parse(event.body || "{}");
+      const result = await paymentService.createCheckoutSession(requestBody);
+      return createSuccessResponse(result);
+    } catch (error) {
+      console.error("[Checkout Session Creation Error]:", error);
+      return createErrorResponse(error.statusCode || 500, "Failed to create checkout session", {
         message: error.message,
         code: error.code,
         type: error.type,

@@ -5,88 +5,94 @@ const { SUPPORTED_BUSINESS_TYPES, BASE_FRONTEND_URL, DEFAULT_MCC_CODE } = requir
 
 const createOnboardingLink = async (requestBody) => {
   try {
-    const { email, business_type = "individual" } = requestBody;
+    const { email, business_type = "individual", account_id } = requestBody;
 
-    if (!email || !validateEmail(email)) {
-      throw new Error("Valid email is required");
-    }
+    // if (!email || !validateEmail(email)) {
+    //   throw new Error("Valid email is required");
+    // }
 
-    if (!SUPPORTED_BUSINESS_TYPES.includes(business_type)) {
-      throw new Error(`Invalid business type. Supported types: ${SUPPORTED_BUSINESS_TYPES.join(", ")}`);
-    }
+    // if (!SUPPORTED_BUSINESS_TYPES.includes(business_type)) {
+    //   throw new Error(`Invalid business type. Supported types: ${SUPPORTED_BUSINESS_TYPES.join(", ")}`);
+    // }
 
-    // Generate idempotency key for safe retries
     const idempotencyKey = uuidv4();
 
-    const account = await stripe.accounts.create(
-      {
-        type: "standard",
-        email,
-        business_type,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-          us_bank_account_ach_payments: { requested: true },
-          tax_reporting_us_1099_k: { requested: true }, // For US tax reporting
-        },
-        business_profile: {
-          mcc: DEFAULT_MCC_CODE,
-          url: `${BASE_FRONTEND_URL}/connected-accounts`,
-          support_email: email,
-          support_url: `${BASE_FRONTEND_URL}/support`,
-          product_description: "Payment processing services",
-        },
-        settings: {
-          payouts: {
-            schedule: { interval: "manual" },
-            statement_descriptor: "INTELEBEE PAYOUT",
-            debit_negative_balances: true,
-          },
-          payments: {
-            statement_descriptor: "INTELEBEE PAY",
-            statement_descriptor_prefix: "IB*",
-            card_payments: {
-              decline_on: {
-                avs_failure: true,
-                cvc_failure: true,
-              },
-            },
-          },
-          treasury: {
-            tos_acceptance: { date: Math.floor(Date.now() / 1000) },
-          },
-        },
-        metadata: {
-          createdAt: new Date().toISOString(),
-          createdBy: "system",
-          accountType: "standard",
-          businessType: business_type,
-          idempotencyKey,
-        },
-      },
-      {
-        idempotencyKey,
+    if (account_id) {
+      const account = await stripe.accounts.retrieve(account_id);
+      if (account.type !== "standard") {
+        throw new Error("Account is not a standard account");
       }
-    );
 
-    const accountLink = await stripe.accountLinks.create(
-      {
+      const accountLink = await stripe.accountLinks.create({
         account: account.id,
-        refresh_url: `${BASE_FRONTEND_URL}/onboarding/refresh`,
-        return_url: `${BASE_FRONTEND_URL}/onboarding/complete`,
+        refresh_url: `${BASE_FRONTEND_URL}/stripe-standard/onboarding/refresh`,
+        return_url: `${BASE_FRONTEND_URL}/stripe-standard/onboarding/complete?accountId=${account.id}`,
         type: "account_onboarding",
-        collect: "eventually_due",
-        collect_requirements: {
-          currently_due: true,
-          eventually_due: true,
-          past_due: true,
-          pending_verification: true,
-        },
-      },
-      {
-        idempotencyKey: uuidv4(), // Separate idempotency key for account link
-      }
-    );
+      });
+
+      return {
+        url: accountLink.url,
+        accountId: account.id,
+        type: "standard_account_link",
+        email,
+        businessType: business_type,
+      };
+    }
+
+    // Simplified account creation with essential capabilities
+    // const account = await stripe.accounts.create(
+    //   {
+    //     type: "standard",
+    //     email,
+    //     business_type,
+    //     capabilities: {
+    //       card_payments: { requested: true },
+    //       transfers: { requested: true },
+    //     },
+    //     business_profile: {
+    //       mcc: DEFAULT_MCC_CODE,
+    //       url: `${BASE_FRONTEND_URL}/connected-accounts`,
+    //       support_email: email,
+    //     },
+    //     settings: {
+    //       payouts: {
+    //         schedule: { interval: "manual" },
+    //         statement_descriptor: "INTELEBEE PAYOUT",
+    //       },
+    //       payments: {
+    //         statement_descriptor: "INTELEBEE PAY",
+    //       },
+    //     },
+    //     metadata: {
+    //       createdAt: new Date().toISOString(),
+    //       accountType: "standard",
+    //       businessType: business_type,
+    //     },
+    //   },
+    //   { idempotencyKey }
+    // );
+
+    const account = await stripe.accounts.create({
+      type: "standard",
+      email,
+      business_type,
+    });
+
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: `${BASE_FRONTEND_URL}/stripe-standard/onboarding/refresh`,
+      return_url: `${BASE_FRONTEND_URL}/stripe-standard/onboarding/complete?accountId=${account.id}`,
+      type: "account_onboarding",
+    });
+
+    // Simplified account link creation
+    // const accountLink = await stripe.accountLinks.create({
+    //   account: account.id,
+    //   refresh_url: `${BASE_FRONTEND_URL}/onboarding/refresh`,
+    //   return_url: `${BASE_FRONTEND_URL}/onboarding/complete`,
+    //   type: "account_onboarding",
+    //   collect: "eventually_due",
+    // });
 
     return {
       url: accountLink.url,
@@ -94,11 +100,8 @@ const createOnboardingLink = async (requestBody) => {
       type: "standard_account_link",
       email,
       businessType: business_type,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       requirements: account.requirements,
       capabilities: account.capabilities,
-      payoutsEnabled: account.payouts_enabled,
-      chargesEnabled: account.charges_enabled,
     };
   } catch (error) {
     if (error.type === "StripeError") {
@@ -151,13 +154,12 @@ const createDashboardLink = async ({ accountId, returnUrl }) => {
 };
 
 // Direct Payment function for Standard accounts
-const createDirectPayment = async ({ accountId, amount, currency = "usd", paymentMethodId, description, metadata = {} }) => {
+const createDirectPayment = async ({ accountId, amount, currency = "usd", paymentMethodId, description }) => {
   try {
     if (!accountId || !amount || !paymentMethodId) {
       throw new Error("Account ID, amount, and payment method are required");
     }
 
-    // Verify account exists and is enabled for payments
     const account = await stripe.accounts.retrieve(accountId);
     if (!account.charges_enabled) {
       throw new Error("Account is not fully onboarded or enabled for charges");
@@ -167,19 +169,12 @@ const createDirectPayment = async ({ accountId, amount, currency = "usd", paymen
       amount,
       currency: currency.toLowerCase(),
       payment_method: paymentMethodId,
-      confirmation_method: "manual",
       confirm: true,
       description,
-      metadata: {
-        ...metadata,
-        createdAt: new Date().toISOString(),
-        paymentType: "direct_charge",
-      },
-      on_behalf_of: accountId, // This is key for direct charges
+      on_behalf_of: accountId,
       transfer_data: {
         destination: accountId,
       },
-      statement_descriptor_suffix: account.business_profile?.name?.slice(0, 12) || "",
     });
 
     return {
@@ -188,7 +183,6 @@ const createDirectPayment = async ({ accountId, amount, currency = "usd", paymen
       status: paymentIntent.status,
       amount: paymentIntent.amount,
       currency: paymentIntent.currency,
-      chargeId: paymentIntent.latest_charge,
     };
   } catch (error) {
     if (error.type === "StripeError") {
