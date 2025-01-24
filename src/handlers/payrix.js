@@ -56,8 +56,42 @@ const deleteMerchant = async (event) => {
   }
 };
 
+const createPayment = async (event) => {
+  try {
+    const paymentData = JSON.parse(event.body || "{}");
+
+    // Basic validation
+    if (!paymentData.merchant || !paymentData.payment || !paymentData.total) {
+      return createErrorResponse(400, "Missing required payment information");
+    }
+
+    // Validate payment card details
+    const { payment } = paymentData;
+    if (!payment.number || !payment.cvv || !payment.expiration) {
+      return createErrorResponse(400, "Invalid payment card details");
+    }
+
+    // Set default values if not provided
+    const enhancedPaymentData = {
+      ...paymentData,
+    };
+
+    console.log("[Payrix Payment Data]:", paymentData);
+
+    const result = await payrixService.createPayment(paymentData);
+    return createSuccessResponse(result);
+  } catch (error) {
+    console.error("[Payrix Payment Error]:", error);
+    return createErrorResponse(error.statusCode || 500, "Failed to process payment", {
+      message: error.message,
+      details: error.details,
+    });
+  }
+};
+
 module.exports = {
   createMerchant,
   getMerchants,
   deleteMerchant,
+  createPayment,
 };

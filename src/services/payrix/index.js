@@ -19,7 +19,7 @@ const makePayrixRequest = async (method, endpoint, data = null, params = null) =
     if (params) config.params = params;
 
     const response = await axios(config);
-    console.log(`[Payrix ${method} Response]:`, response.data);
+    // console.log(`[Payrix ${method} Response]:`, JSON.stringify(response.data, null, 2));
 
     return {
       success: true,
@@ -41,12 +41,15 @@ const makePayrixRequest = async (method, endpoint, data = null, params = null) =
 
 const createMerchant = (merchantData) => makePayrixRequest("POST", "/entities", merchantData);
 
-const getMerchants = (queryParams) => makePayrixRequest("GET", "/entities", null, queryParams);
+const getMerchants = (queryParams) => makePayrixRequest("GET", "/merchants", null, queryParams);
 
-const deleteMerchant = (merchantId) => makePayrixRequest("DELETE", `/entities/${merchantId}`);
+const deleteMerchant = (merchantId) => makePayrixRequest("DELETE", `/merchants/${merchantId}`);
+
+const createPayment = (paymentData) => makePayrixRequest("POST", "/txns", paymentData);
 
 module.exports = {
   createMerchant,
   getMerchants,
   deleteMerchant,
+  createPayment,
 };

@@ -159,6 +159,14 @@ functions:
           method: delete
           cors: true
 
+  createPayrixPayment:
+    handler: src/handlers/payrix.createPayment
+    events:
+      - httpApi:
+          path: /payrix/payment
+          method: post
+          cors: true
+
 plugins:
   - serverless-offline
   - serverless-dotenv-plugin
