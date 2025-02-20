@@ -135,12 +135,27 @@ functions:
 
   # Payrix Functions
   createPayrixMerchant:
-    handler: src/handlers/payrix.createMerchant
-    timeout: 900 # 15 minutes
+    handler: src/services/payrix/merchants.createMerchant
     events:
-      - http:
-          path: /payrix/merchant
+      - httpApi:
+          path: /payrix/merchants
           method: post
+          cors: true
+
+  getMerchantDashboard:
+    handler: src/handlers/payrix.getMerchantDashboard
+    events:
+      - httpApi:
+          path: /payrix/merchants/{merchantId}/dashboard
+          method: get
+          cors: true
+
+  updateMerchantOnboarding:
+    handler: src/services/payrix/onboarding.updateMerchantOnboarding
+    events:
+      - httpApi:
+          path: /payrix/merchants/{merchantId}/onboarding
+          method: put
           cors: true
 
   getMerchants:
@@ -166,6 +181,8 @@ functions:
           path: /payrix/payment
           method: post
           cors: true
+
+          
 
 plugins:
   - serverless-offline

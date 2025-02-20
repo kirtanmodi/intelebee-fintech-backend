@@ -1,6 +1,6 @@
 const payrixService = require("../services/payrix");
 const { createSuccessResponse, createErrorResponse } = require("../utils/responses");
-
+const dashboard = require("../services/payrix/dashboard");
 const createMerchant = async (event) => {
   try {
     const merchantData = JSON.parse(event.body || "{}");
@@ -89,9 +89,31 @@ const createPayment = async (event) => {
   }
 };
 
+const getMerchantDashboard = async (event) => {
+  try {
+    // Validate merchantId exists in path parameters
+    if (!event.pathParameters?.merchantId) {
+      return createErrorResponse(400, "Merchant ID is required");
+    }
+
+    console.log("[Payrix Dashboard Event]:", event?.pathParameters?.merchantId);
+
+    const merchantId = event.pathParameters.merchantId;
+    const result = await dashboard.getMerchantDashboard(merchantId);
+    return createSuccessResponse(result);
+  } catch (error) {
+    console.error("[Payrix Dashboard Error]:", error);
+    return createErrorResponse(error.statusCode || 500, "Failed to get merchant dashboard", {
+      message: error.message,
+      details: error.details,
+    });
+  }
+};
+
 module.exports = {
   createMerchant,
   getMerchants,
   deleteMerchant,
   createPayment,
+  getMerchantDashboard,
 };

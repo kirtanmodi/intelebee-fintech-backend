@@ -52,4 +52,5 @@ module.exports = {
   getMerchants,
   deleteMerchant,
   createPayment,
+  makePayrixRequest,
 };

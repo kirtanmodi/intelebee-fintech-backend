@@ -7,9 +7,9 @@
     "uuid": "^9.0.0"
   },
   "scripts": {
-    "deploy": "serverless deploy --stage dev",
-    "remove": "serverless remove --stage dev",
-    "offline": "sls offline --stage dev --httpPort 3001"
+    "deploy": "serverless deploy --stage dev --aws-profile kirtan-default",
+    "remove": "serverless remove --stage dev --aws-profile kirtan-default",
+    "offline": "sls offline --stage dev --httpPort 3001 --aws-profile kirtan-default"
   },
   "devDependencies": {
     "serverless-offline": "^14.4.0"
